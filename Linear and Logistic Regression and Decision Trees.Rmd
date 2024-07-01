@@ -1,0 +1,806 @@
+---
+title: "Assignment 3"
+output:
+  html_document:
+    df_print: paged
+---
+
+#Part 1 & 2
+```{r}
+adult <- read.csv("D:\\Machine Learning\\Assignment 3\\adult.data", header=FALSE, na.strings = " ?")
+
+colnames(adult) <- c("age", "workclass", "fnlwgt", "education", "education_num", 
+                    "marital_status", "occupation", "relationship", "race", 
+                    "sex", "capital_gain", "capital_loss", "hours_per_week", 
+                    "native_country", "income")
+
+str(adult)
+summary(adult)
+
+cat("
+age; Numeric, continuous
+workclass; Categorical, nominal
+fnlwgt; Numeric, continuous
+education; Categorical, ordinal
+education_num; Numeric, continuous
+marital_status; Categorical, Ordinal
+occupation; Categorical, nominal
+relationship; Categorical, nominal
+race; Categorical, nominal
+sex; Categorical, nominal
+capital_gain; Numeric, continuous
+capital_loss; Numeric, continuous
+hours_per_week; Numeric, discrete
+native_country; Categorical, nominal
+income; Categorical, Ordinal
+")
+
+
+```
+#Part 3
+```{r}
+
+set.seed(123)
+train_sample <- sample(32561, 26049)
+adult_train <- adult[train_sample, ]
+adult_test <- adult[-train_sample, ]
+
+prop.table(table(adult_train$income))
+prop.table(table(adult_test$income))
+
+dim(adult_train)
+dim(adult_test)
+
+
+```
+#Part 4
+```{r}
+
+
+print("missing values in train")
+
+colSums(is.na(adult_train))
+
+
+print("missing values in test")
+
+colSums(is.na(adult_test))
+
+cat("
+Replace the missing values in both train and test data with the mode as the variables are categorical. The mode for imputation should be computed based on the training data only as don’t want any information from the test data to leak into the model during training.
+
+Explain why you chose this imputation approach?
+The mode imputation strategy is robust to different types of missing data mechanisms. Whether the missingness is completely at random, missing at random, or missing not at random, this approach effectively handles missing values without introducing significant bias. This approach is straightforward and easy to implement. Imputing missing values with the mode of the column requires minimal computational effort and is easy to understand
+    ")
+
+for (col in c("workclass", "occupation", "native_country")) {
+  mode_val <- names(which.max(table(adult_train[[col]])))
+  adult_train[[col]][is.na(adult_train[[col]])] <- mode_val
+}
+
+colSums(is.na(adult_train))
+
+for (col in c("workclass", "occupation", "native_country")) {
+  mode_val <- names(which.max(table(adult_test[[col]])))
+  adult_test[[col]][is.na(adult_test[[col]])] <- mode_val
+}
+
+colSums(is.na(adult_test))
+
+```
+#Part 5
+```{r}
+map_to_geographic_region <- function(country) {
+  north_america <- c("United-States", "Canada", "Mexico")
+  europe <- c("Germany", "United-Kingdom", "France", "Italy", "Netherlands", "Spain", "Greece", "Portugal", "Switzerland", "Sweden", "Norway", "Belgium", "Denmark", "Finland", "Ireland", "Austria", "Poland", "Hungary", "Czech-Republic", "Romania", "Slovakia", "Bulgaria", "Croatia", "Lithuania", "Latvia", "Estonia", "Slovenia", "Luxembourg", "Malta")
+  asia <- c("China", "India", "Japan", "South-Korea", "Indonesia", "Vietnam", "Philippines", "Taiwan", "Thailand", "Malaysia", "Singapore", "Pakistan", "Bangladesh", "Sri-Lanka", "Nepal", "Afghanistan", "Iran", "Iraq", "Israel", "Saudi-Arabia", "United-Arab-Emirates", "Lebanon", "Jordan", "Kuwait", "Oman", "Qatar", "Bahrain", "Yemen", "Syria")
+  africa <- c("South-Africa", "Nigeria", "Ethiopia", "Kenya", "Egypt", "Algeria", "Morocco", "Tunisia", "Ghana", "Tanzania", "Uganda", "Zimbabwe", "Zambia", "Cameroon", "Senegal", "Mozambique", "Angola", "Ivory-Coast", "Madagascar", "Rwanda", "Burkina-Faso", "Mali", "Malawi", "Togo", "Sierra-Leone", "Niger", "Chad", "Mauritania", "Congo", "Libya")
+  oceania <- c("Australia", "New-Zealand", "Fiji", "Papua-New-Guinea", "Solomon-Islands", "Vanuatu", "Samoa", "Tonga", "Kiribati", "Tuvalu", "Nauru", "Micronesia", "Marshall-Islands", "Palau")
+  south_america <- c("Brazil", "Argentina", "Colombia", "Peru", "Venezuela", "Chile", "Ecuador", "Bolivia", "Paraguay", "Uruguay", "Guyana", "Suriname")
+  caribbean <- c("Jamaica", "Haiti", "Dominican-Republic", "Trinidad&Tobago", "Cuba", "Barbados", "Bahamas", "Grenada", "Saint-Lucia", "Saint-Vincent&the-Grenadines", "Antigua&Barbuda", "Dominica", "Saint-Kitts&Nevis")
+  central_america <- c("Costa-Rica", "Honduras", "El-Salvador", "Guatemala", "Nicaragua", "Panama", "Belize")
+  if (country %in% north_america) {
+    return("North America")
+  } else if (country %in% europe) {
+    return("Europe")
+  } else if (country %in% asia) {
+    return("Asia")
+  } else if (country %in% africa) {
+    return("Africa")
+  } else if (country %in% oceania) {
+    return("Oceania")
+  } else if (country %in% south_america) {
+    return("South America")
+  } else if (country %in% caribbean) {
+    return("Caribbean")
+  } else if (country %in% central_america) {
+    return("Central America")
+  } else {
+    return("Other")
+  }
+} 
+
+countries <- c("Cambodia", "Canada", "China", "Columbia", "Cuba", "El-Salvador", "Dominican-Republic", "Ecuador", "England", "France", "Germany", "Greece", "Guatemala", "Haiti", "Honduras", "Hong", "Hungary", "India", "Iran", "Ireland", "Italy", "Jamaica", "Japan", "Laos", "Mexico", "Outlying-US(Guam-USVI-etc)", "Nicaragua", "Peru", "Philippines", "Poland", "Portugal", "Puerto-Rico", "Scotland", "South", "Taiwan", "Thailand", "Trinadad&Tobago", "Vietnam", "United-States", "Yugoslavia")
+country_occurrence <- table(adult_train$native_country)
+
+# Identify countries with less than 0.1% occurrence
+infrequent_countries <- names(country_occurrence[country_occurrence < 0.001 * length(adult_train$native_country)])
+
+# Group countries based on their geographic location
+# You can define your own groups based on domain knowledge
+# For simplicity, let's group them into major continents
+grouped_countries <- sapply(countries, map_to_geographic_region)
+
+# Combine infrequent countries into the "Other" category
+grouped_countries[grouped_countries %in% infrequent_countries] <- "Other"
+
+# Check the frequency of each group
+table(grouped_countries)
+
+
+```
+#Part 6
+```{r}
+
+library(ggplot2)
+
+chi_square <- chisq.test(table(adult$income, adult$workclass))
+print(chi_square)
+ggplot(adult, aes(x = workclass, fill = income)) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+geom_bar(position = "fill")
+labs(title = "Distribution of income across workclass categories")
+
+
+chi_square <- chisq.test(table(adult$income, adult$education))
+print(chi_square)
+ggplot(adult, aes(x = education, fill = income)) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+geom_bar(position = "fill")
+labs(title = "Distribution of income across education categories")
+
+
+chi_square <- chisq.test(table(adult$income, adult$marital_status))
+print(chi_square)
+ggplot(adult, aes(x = marital_status, fill = income)) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+geom_bar(position = "fill")
+labs(title = "Distribution of income across marital_status categories")
+
+
+chi_square <- chisq.test(table(adult$income, adult$occupation))
+print(chi_square)
+ggplot(adult, aes(x = occupation, fill = income)) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+geom_bar(position = "fill")
+labs(title = "Distribution of income across occupation categories")
+
+
+chi_square <- chisq.test(table(adult$income, adult$relationship))
+print(chi_square)
+ggplot(adult, aes(x = relationship, fill = income)) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+geom_bar(position = "fill")
+labs(title = "Distribution of income across relationship categories")
+
+
+chi_square <- chisq.test(table(adult$income, adult$race))
+print(chi_square)
+ggplot(adult, aes(x = race, fill = income)) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+geom_bar(position = "fill")
+labs(title = "Distribution of income across race categories")
+
+
+chi_square <- chisq.test(table(adult$income, adult$sex))
+print(chi_square)
+ggplot(adult, aes(x = sex, fill = income)) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+geom_bar(position = "fill")
+labs(title = "Distribution of income across sex categories")
+
+
+chi_square <- chisq.test(table(adult$income, adult$native_country))
+print(chi_square)
+ggplot(adult, aes(x = native_country, fill = income)) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+geom_bar(position = "fill")
+labs(title = "Distribution of income across native_country categories")
+
+
+
+t_test <- t.test(age ~ income, data = adult)
+print(t_test)
+ggplot(adult, aes(x = income, y = age)) +
+geom_boxplot()
+labs(title = "Distribution of age across income categories")
+
+t_test <- t.test(fnlwgt ~ income, data = adult)
+print(t_test)
+ggplot(adult, aes(x = income, y = fnlwgt)) +
+geom_boxplot()
+labs(title = "Distribution of fnlwgt across income categories")
+
+t_test <- t.test(education_num ~ income, data = adult)
+print(t_test)
+ggplot(adult, aes(x = income, y = education_num)) +
+geom_boxplot()
+labs(title = "Distribution of education_num across income categories")
+
+t_test <- t.test(capital_gain ~ income, data = adult)
+print(t_test)
+ggplot(adult, aes(x = income, y = capital_gain)) +
+geom_boxplot()
+labs(title = "Distribution of capital_gain across income categories")
+
+t_test <- t.test(capital_loss ~ income, data = adult)
+print(t_test)
+ggplot(adult, aes(x = income, y = capital_loss)) +
+geom_boxplot()
+labs(title = "Distribution of capital_loss across income categories")
+
+t_test <- t.test(hours_per_week ~ income, data = adult)
+print(t_test)
+ggplot(adult, aes(x = income, y = hours_per_week)) +
+geom_boxplot()
+labs(title = "Distribution of hours_per_week across income categories")
+
+cat("
+All the test of significance are statistically significant that means there is association between income and all the variables. From this analysis we found out that only fnlwgt is not associated with income and we will remove this variable from train and test set.
+    ")
+
+adult_train <- adult_train[, !(names(adult_train) %in% c("fnlwgt"))]
+adult_test <- adult_test[, !(names(adult_test) %in% c("fnlwgt"))]
+
+```
+#Part 7
+```{r}
+
+library(psych)
+
+adult_train$income <- ifelse(adult_train$income == " >50K", 1, 0)
+logistic_model <- glm(income ~ ., data = adult_train, family = "binomial")
+summary(logistic_model)
+
+predicted_probs <- predict(logistic_model, newdata = adult_test, type = "response")
+
+predicted_labels <- ifelse(predicted_probs > 0.5, ">50K", "<=50K")
+
+# View the predicted labels
+head(predicted_labels)
+
+```
+
+#Part 8
+```{r}
+actual.label = adult_test$income
+t = table(predicted_labels,actual.label)
+t
+
+error = (t[1,2]+t[2,1])/sum(t)
+print(error)
+```
+#Part 8
+```{r}
+conf_mat <- table(predicted_labels, actual.label)
+
+TP <- conf_mat[2, 2]
+FP <- conf_mat[2, 1]
+TN <- conf_mat[1, 1]
+FN <- conf_mat[1, 2]
+
+total_error <- (FP + FN) / sum(conf_mat)
+
+precision_le50k <- TN / (TN + FP)
+recall_le50k <- TN / (TN + FN)
+
+precision_gt50k <- TP / (TP + FN)
+recall_gt50k <- TP / (TP + FP)
+
+cat("Total Error:", total_error, "\n")
+cat("Precision (<=50K):", precision_le50k, "\n")
+cat("Recall (<=50K):", recall_le50k, "\n")
+cat("Precision (>50K):", precision_gt50k, "\n")
+cat("Recall (>50K):", recall_gt50k, "\n")
+
+
+```
+#Part 9
+```{r}
+
+data_1 <- adult_train[adult_train$income == 1, ]
+data_2 <- adult_train[adult_train$income == 0, ]
+
+samples <- sample(1:nrow(data_2), nrow(data_1))
+
+data_2 <- data_2[samples, ]
+dim(data_2)
+```
+
+```{r}
+train_data_down <- rbind(data_2, data_1)
+table(train_data_down$income)
+
+```
+
+```{r}
+model_2 <- glm(income ~ ., data = train_data_down, family = 'binomial')
+model_prediction <- predict(model_2, newdata = adult_test, type = 'response')
+model_prediction <- ifelse(model_prediction > 0.5, " >50K", " <=50K")
+cross_table <- table(adult_test$income, model_prediction)
+cross_table
+```
+
+```{r}
+t = table(adult_test$income, model_prediction)
+t
+
+error = (t[1,2]+t[2,1])/sum(t)
+print(error)
+
+
+```
+
+```{r}
+conf_mat <- table(adult_test$income, model_prediction)
+
+TP <- conf_mat[2, 2]
+FP <- conf_mat[2, 1]
+TN <- conf_mat[1, 1]
+FN <- conf_mat[1, 2]
+
+total_error <- (FP + FN) / sum(conf_mat)
+
+precision_le50k <- TN / (TN + FP)
+recall_le50k <- TN / (TN + FN)
+
+precision_gt50k <- TP / (TP + FN)
+recall_gt50k <- TP / (TP + FP)
+
+cat("Total Error:", total_error, "\n")
+cat("Precision (<=50K):", precision_le50k, "\n")
+cat("Recall (<=50K):", recall_le50k, "\n")
+cat("Precision (>50K):", precision_gt50k, "\n")
+cat("Recall (>50K):", recall_gt50k, "\n")
+
+
+cat("
+The balanced model has a error rate increased by 3%, indicating better overall performance. Precision (<=50K) has decreased 2% in the balanced model while Recall (<=50K) has increased by 7%. Precision (>50K) has increased 3% in the balanced model while Recall (>50K) has been decreased by 12%
+    ")
+
+```
+
+```{r}
+
+library(C50)
+
+
+adult_train$income <- ifelse(adult_train$income == 1, " >50K", " <=50K")
+
+# fitting the c5.0 model on train data with 30 trails
+model_c5 <- C5.0(as.factor(income) ~., data = adult_train, trails = 30)
+
+# prediction on test data
+c5_prediction <- predict(model_c5, newdata = adult_test)
+
+# cross table
+cross_table <- table(adult_test$income, c5_prediction)
+cross_table
+
+
+```
+
+```{r}
+conf_mat <- table(adult_test$income, c5_prediction)
+
+TP <- conf_mat[2, 2]
+FP <- conf_mat[2, 1]
+TN <- conf_mat[1, 1]
+FN <- conf_mat[1, 2]
+
+total_error <- (FP + FN) / sum(conf_mat)
+
+precision_le50k <- TN / (TN + FP)
+recall_le50k <- TN / (TN + FN)
+
+precision_gt50k <- TP / (TP + FN)
+recall_gt50k <- TP / (TP + FP)
+
+cat("Total Error:", total_error, "\n")
+cat("Precision (<=50K):", precision_le50k, "\n")
+cat("Recall (<=50K):", recall_le50k, "\n")
+cat("Precision (>50K):", precision_gt50k, "\n")
+cat("Recall (>50K):", recall_gt50k, "\n")
+
+
+
+```
+
+```{r}
+train_data_down$income <- ifelse(train_data_down$income == 1, " >50K", " <=50K")
+model_c5_down <- C5.0(as.factor(income) ~., data = train_data_down, trails = 30)
+c5_prediction <- predict(model_c5_down, newdata = adult_test)
+cross_table <- table(adult_test$income, c5_prediction)
+cross_table
+
+
+```
+
+```{r}
+conf_mat <- table(adult_test$income, c5_prediction)
+
+TP <- conf_mat[2, 2]
+FP <- conf_mat[2, 1]
+TN <- conf_mat[1, 1]
+FN <- conf_mat[1, 2]
+
+total_error <- (FP + FN) / sum(conf_mat)
+
+precision_le50k <- TN / (TN + FP)
+recall_le50k <- TN / (TN + FN)
+
+precision_gt50k <- TP / (TP + FN)
+recall_gt50k <- TP / (TP + FP)
+
+cat("Total Error:", total_error, "\n")
+cat("Precision (<=50K):", precision_le50k, "\n")
+cat("Recall (<=50K):", recall_le50k, "\n")
+cat("Precision (>50K):", precision_gt50k, "\n")
+cat("Recall (>50K):", recall_gt50k, "\n")
+
+
+
+
+```
+
+```{r}
+
+cat("
+The balanced model has an error rate increased by 5.92%, indicating worse overall performance. Precision (<=50K) has decreased by 0.6% in the balanced model while Recall (<=50K) has increased by 6.2%. Precision (>50K) has decreased by 19.8% in the balanced model while Recall (>50K) has been increased by 22.9%.
+    ")
+
+```
+
+```{r}
+cat("
+Total Error: The logistic regression model has a higher total error compared to the boosted C5.0 model in both the original and balanced datasets, indicating better overall performance of the boosted C5.0 model in terms of misclassification.
+
+Precision (<=50K): The precision for predicting income <=50K is slightly higher in the logistic regression model compared to the boosted C5.0 model, regardless of the dataset being original or balanced.
+
+Recall (<=50K): The recall for predicting income <=50K is higher in the logistic regression model compared to the boosted C5.0 model, regardless of the dataset being original or balanced.
+
+Precision (>50K): The precision for predicting income >50K is higher in the boosted C5.0 model compared to the logistic regression model, regardless of the dataset being original or balanced.
+
+Recall (>50K): The recall for predicting income >50K is higher in the boosted C5.0 model compared to the logistic regression model, regardless of the dataset being original or balanced.
+    ")
+
+
+```
+
+#Problem 2 part 11
+```{r}
+
+student <- read.csv("D:\\Machine Learning\\Assignment 3\\student-mat.csv", sep = ';' , stringsAsFactors = TRUE)
+str(student)
+
+```
+#part 12 a
+```{r}
+
+colSums(is.na(student))
+cat("There are no missing data in the student data")
+
+```
+#part 12 b
+```{r}
+
+
+library(dplyr)
+library(ggplot2)
+for (c in colnames(student[, -33]))
+{
+  if (is.factor(student[,c]))
+  {
+    pvalue = oneway.test(student$G3 ~ student[,c])$p.value
+    cat("\npvalue of oneway test between", c, "and G3 is:", pvalue, "\n")
+    
+  }
+  else if(is.numeric(student[,c]))
+  {
+    t = cor.test(student$G3, student[,c])
+    cat("\npvalue of cor.test between", c,"and G3 is:", t$p.value,"\n")
+    cat("spearman correlation between", c, "and G3 is:", t$estimate,"\n")
+  }
+}
+
+```
+
+```{r}
+cat(" variable G3 is strongly associated with G1 and G2. There is a very weak relationship between G3 and rest of the numerical variables")
+
+cat("
+This t-test results are not significant indicating that there is no association between G3 and school predictor.
+The t-test is significant indicating a weak relationship between G3 and sex variable.
+The t-test results are significant indicating a weak relationship between G3 and romantic.
+The t-test results are not significant that mean there is no association between G3 and internet.
+The t-test results are significant indicating that there is moderate relationship between G3 and higher.
+The t-test results are not significant that means there is no relationship between G3 and nursery.
+    ")
+
+```
+#part 12 c
+```{r}
+
+hist(student$G3)
+cat("we can see that the distribution is slightly skewed to the right, indicating that there are more students with higher grades than lower grades. The mean and median are both around 11, indicating that the central tendency of the data is around 11")
+
+```
+#part 13
+```{r}
+set.seed(123)
+
+train_index <- sample(1:nrow(student), round(nrow(student) * 0.8))
+
+student_train <- student[train_index, ]
+nrow(student_train) / nrow(student)
+
+student_test  <- student[-train_index, ]
+nrow(student_test) / nrow(student)
+
+```
+
+#part 14
+```{r}
+library(caret)
+
+set.seed(123)
+train_control <- trainControl(method = "cv", number = 10)
+model_lm <- train(G3 ~ ., data = student_train, method = "lm", trControl = train_control)
+print(model_lm)
+summary(model_lm)
+```
+
+```{r}
+
+cat("The coefficients of G2, G1, absences, famrel, activitiesyes, and age are significant that means the coefficient of these variables are not zero and they contribute significantly in this model.")
+
+```
+
+```{r}
+
+set.seed(123)
+test_preds <- predict(model_lm, student_test)
+
+LR_RMSE <- sqrt(mean((test_preds - student_test$G3)^2))
+LR_RMSE
+
+```
+
+```{r}
+library(leaps)
+set.seed(123)
+model_back <- train(G3 ~.,
+               data = student_train,
+               method = "leapBackward",
+               trControl = train_control,
+               tuneGrid = data.frame(nvmax = 2:32))
+
+
+# model with lowest RMSE
+model_back$results[model_back$results[, "RMSE"] == min(model_back$results[, "RMSE"]), ]
+
+```
+
+```{r}
+
+summary(model_back$finalModel)
+
+```
+
+```{r}
+
+test_pred <- predict(model_back, student_test)
+back_rmse <- sqrt(mean((student_test$G3 - test_pred)^2))
+print(back_rmse)
+
+```
+#part 16
+```{r}
+knitr::kable(data.frame(rmse = c(LR_RMSE, back_rmse), row.names = c('Linear Model','Stepwise Backward')) )
+cat("In this case, the Stepwise Backward model has a lower RMSE and is considered to perform better for predicting G3.")
+
+```
+
+
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
